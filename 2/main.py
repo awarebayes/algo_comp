@@ -51,10 +51,10 @@ def main():
     if table_type == "Из таблицы":
        result = newton_3d(table, nx + 1, ny + 1, nz + 1, x, y, z)
     else:
-        xs = np.linspace(xs, xe, xst)
-        ys = np.linspace(ys, ye, yst)
-        zs = np.linspace(zs, ze, zst)
-        result = newton_3d_alt((xs, ys, zs), func, (nx+1, ny+1, nz+1), (x, y, z))
+        xs_ = np.linspace(xs, xe, xst)
+        ys_ = np.linspace(ys, ye, yst)
+        zs_ = np.linspace(zs, ze, zst)
+        result = newton_3d_alt((xs_, ys_, zs_), func, (nx+1, ny+1, nz+1), (x, y, z))
 
     st.subheader("Result")
     st.write(f"Answer: {result}")
