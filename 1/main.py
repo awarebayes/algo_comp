@@ -137,9 +137,8 @@ def main():
         "Значение x: ",
         min_value=float(xs.min()),
         max_value=float(xs.max()),
-        value=float(xs.mean())
+        value=float(xs.mean()),
     )
-
 
     st.subheader("Метод Ньютона")
     newton_comparison = {"x": [], "n": [], "newton": []}
@@ -194,7 +193,7 @@ def main():
         "Значение y: ",
         min_value=float(ys.min()),
         max_value=float(ys.max()),
-        value=float(ys.mean())
+        value=float(ys.mean()),
     )
     backward_comparison = {"y": [], "n": [], "backward": []}
 
@@ -211,7 +210,9 @@ def main():
 
     ax.plot(df["y"], df["x"], label="x")
     ax.scatter(
-        backward_comparison["y"], backward_comparison["backward"], c=backward_comparison["n"]
+        backward_comparison["y"],
+        backward_comparison["backward"],
+        c=backward_comparison["n"],
     )
     ax.legend()
     st.pyplot(fig)
