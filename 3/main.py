@@ -1,88 +1,71 @@
-from spline import *
-from readData import *
-import numpy as np
-from matplotlib import pyplot as plt
-import streamlit as st
-from newton import newton
+import pandas as pd
 
+from modules.newton import *
+from modules.spline import *
+from modules.io import *
+
+import random
+import numpy as np
+import streamlit as st
+
+
+def func(x):
+    return np.sin(np.cos(x))/(x + 50)
+
+def generate_x_y(xstart, xend, xnum):
+    x = list(np.linspace(xstart, xend, num=xnum))
+    y = []
+    for num in x:
+        y.append(func(num))
+
+    return x, y
+
+
+# x, y = generate_x_y(-20, 20, 20)
+
+x = [0, 1 ,2]
+y = [-1, 0, 7]
+
+# Сплайн по трём точкам будет состоять из двух функций, поэтому всего неизвестных коэффициентов будет 8.
+
+# 1, 2) ai = yi
+# 3, 4) ai + bi(xi+1 - xi) + ci(xi+1 - xi)2 + d(xi+1 - xi)3 = yi+1, f1’(x2) = f2’(x2)
+# 5) b1 + 2c1(x2 - x1) + 3d1(x2 - x1)2 = b2, f1’’(x2) = f2’’(x2)
+# 6) c1 + 3d1(x2 - x1)2 = c2
+# 7) f1’’(x1) = 0 => c1 = 0
+# 8) f2’’(x3) = 0 => c2 + 3d2(x3 - x2) = 0
 
 def main():
 
-    table_type = st.selectbox("Тип функции", ["из таблицы", "своя"])
-    point_table = None
-    if table_type == "из таблицы":
-        pointTable = read_table("./data.txt")
+    i = st.number_input("Введите аргумент x: ", -100.0, 100.0, 1.0, step=1.0, format="%.5f")
+
+    if i < min(x) or i > max(x):
+        st.error("Out of bounds!")
+    elif len(x) != len(y):
+        st.error("Broken data!")
+    elif len(x) < 4:
+        st.error("Not enought points for newton!")
+        table = add_values_to_table(x, y)
+        start = newton_interpolate_second_derivative(x[0], table, 2)
+        end = newton_interpolate_second_derivative(x[-1], table, 2)
+        st.write("Spline, boundaries = start, end", calculate_spline(i, x, y, 0, 12))
     else:
-        xs = st.number_input(
-            "Введите x_start: ", -100.0, 100.0, 1.0, step=1.0, format="%.5f"
-        )
-        xe = st.number_input(
-            "Введите x_end: ", -100.0, 100.0, 10.0, step=1.0, format="%.5f"
-        )
-        xst = int(st.number_input("Введите кол во узлов x: ", 1, 100, 10))
-        expression = st.text_input("Введите выражение, f(x)=", "x**3")
-        func = eval(f"lambda x: {expression}")
-        pointTable = generateTable(xs, xe, xst, func)
+        table = add_values_to_table(x, y)
 
-    n = 3
-    x = st.number_input("Введите x: ", -100.0, 100.0, 10.0, step=1.0, format="%.5f")
+        start = newton_interpolate_second_derivative(x[0], table)
+        end = newton_interpolate_second_derivative(x[-1], table)
 
-    start1 = 0
-    end1 = 0
-    start2 = 0
-    end2 = 0
-    start3 = 0
-    end3 = 0
-
-    xs = pointTable[:, 0]
-    ys = pointTable[:, 1]
-
-    yValues = [list(), list(), list(), list()]
-    if n < len(pointTable):
-        st.write("Ньютон 3-й степени:         ", newton(x, xs, ys, n + 1))
-        end2 = newton(pointTable[-1][0], xs, ys, n + 1)
-        start3 = newton(pointTable[0][0], xs, ys, n + 1)
-        end3 = newton(pointTable[-1][0], xs, ys, n + 1)
-    else:
-        st.error(
-            "Ньютон 3-й степени нельзя посчитать стпени",
-            n,
-            ", так как точек всего",
-            len(pointTable),
+        comparison = pd.DataFrame(
+            {
+                'name': ["Newton, n=3", "Spline, boundaries = 0:", "Spline, right boundary = 0:", "Spline, both boundaries are derivatives: "],
+                'result': [newton_interpolate(i, 3, table), calculate_spline(i, x, y, 0, 0), calculate_spline(i, x, y, start, 0), calculate_spline(i, x, y, start, end)],
+                'start': [None, 0, start, start],
+                'end': [None, 0, 0, end]
+            }
         )
 
-    st.write("Cплайн 0 and 0:             ", spline(x, xs, ys, (start1, end1)))
-    st.write("Cплайн 0 and P''(xn):       ", spline(x, xs, ys, (start2, end2)))
-    st.write("Cплайн P''(x0) and P''(xn): ", spline(x, xs, ys, (start3, end3)))
+        st.dataframe(comparison)
+        print_graphic(x, y, start, end, table)
 
-    xValues = np.linspace(pointTable[0][0], pointTable[-1][0], 100)
-
-    if n < len(pointTable):
-        for xi in xValues:
-            yValues[3].append(newton(xi, pointTable[:, 0], pointTable[:, 1], n + 1))
-
-    ranges = [(start1, end1), (start2, end2), (start3, end3)]
-    for xi in xValues:
-        yValues[0].append(spline(xi, xs, ys, (start1, end1)))
-
-    for xi in xValues:
-        yValues[1].append(spline(xi, xs, ys, (start2, end2)))
-
-    for xi in xValues:
-        yValues[2].append(spline(xi, xs, ys, (start3, end3)))
-
-    fig, ax = plt.subplots()
-    ax.plot(xValues, yValues[0], "-", color="r", label=f"spline ({ranges[0][0]: .2f}, {ranges[0][1]: .2f})")
-    ax.plot(xValues, yValues[1], "-", color="b", label=f"spline ({ranges[1][0]: .2f}, {ranges[1][1]: .2f})")
-    ax.plot(xValues, yValues[2], "-", color="g", label=f"spline ({ranges[2][0]: .2f}, {ranges[2][1]: .2f})")
-
-    if n < len(pointTable):
-        ax.plot(xValues, yValues[3], ":", color="black", label="newton")
-
-    ax.legend()
-    ax.set_title("Interpolation with splines")
-    st.pyplot(fig)
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

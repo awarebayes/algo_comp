@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
-from numba import njit
+from numba import njit, jit
 import streamlit as st
 
 
@@ -40,21 +40,35 @@ def y_herm(i, k, zs, ys, ys_der):
             y_herm(i + 1, k - 1, zs, ys, ys_der) - y_herm(i, k - 1, zs, ys, ys_der)
         ) / (zs[i + k] - zs[i])
 
+@jit
+def topk_closest(x, xs, k):
+    closest = np.abs(xs - x).argsort()
+    return np.sort(closest[:k])
 
-@njit
+
+@jit
 def newton(x, xs, ys, power=None):
     if power is None:
         power = len(xs)
+
+    topk = topk_closest(x, xs, power)
+    xs = xs[topk]
+    ys = ys[topk]
+
     lp = y_newt(0, 0, xs, ys)
     for k in range(1, power):
         lp += y_newt(0, k, xs, ys) * np.prod(x - xs[:k])
     return lp
 
-
-@njit
+@jit
 def hermite(x, xs, ys, ys_der, power=None):
     if power is None:
         power = 2 * len(xs) + 2
+
+    topk = topk_closest(x, xs, power)
+    xs = xs[topk]
+    ys = ys[topk]
+    ys_der = ys_der[topk]
 
     zs = np.zeros(2 * len(xs))
     zs[::2] = xs
@@ -70,7 +84,7 @@ def get_df(file):
     # get extension and read file
     extension = file.name.split(".")[1]
     if extension.upper() == "CSV":
-        df = pd.read_csv(file)
+        df = pd.read_csv(file, index_col=None)
     elif extension.upper() == "XLSX":
         df = pd.read_excel(file, engine="openpyxl")
     return df
@@ -106,13 +120,39 @@ def get_data(type):
             }
         )
     elif type == "Sin(4*x)":
-        x = np.linspace(0, 1.05, 20)
+        x = np.linspace(0, 1.05, 8)
         df = pd.DataFrame({"x": x, "y": np.sin(4 * x), "y`": 4 * np.cos(4 * x)})
     elif type == "Загрузить csv":
-        file = st.file_uploader("Upload file", type=["csv", "xlsx", "pickle"])
+        file = st.file_uploader("Upload file", type=["csv", "xlsx"])
         if file is not None:
             return get_df(file)
     return df
+
+
+def bin_search(xs, ys):
+    for i in range(len(xs)-1):
+        x_0 = xs[i]
+        x_1 = xs[i + 1]
+        y_0 = ys[i]
+        y_1 = ys[i+1]
+        if y_0 * y_1 <= 0:
+            x_at_zero = (-y_0) * (x_1-x_0)/(y_1-y_0) + x_0
+            if xs.min() <= x_at_zero <= xs.max():
+                return x_at_zero
+    return None
+
+
+def backwards_newton(y_0, ys, xs, n):
+    result = newton(y_0, ys, xs, power=n)
+    if not ys.min() < result < ys.max():
+        new_xs = np.linspace(xs.min(), xs.max(), 100)
+        new_ys = []
+        for new_x in new_xs:
+            new_y = newton(new_x, xs, ys)
+            new_ys.append(new_y)
+        new_ys = np.array(new_ys)
+        result = bin_search(new_xs, new_ys)
+    return result
 
 
 def main():
@@ -124,6 +164,8 @@ def main():
     df = get_data(data_type)
     if df is None:
         return
+
+    df = df.sort_values("x")
 
     st.dataframe(df)
 
@@ -137,8 +179,12 @@ def main():
         "Значение x: ",
         min_value=float(xs.min()),
         max_value=float(xs.max()),
-        value=float(xs.mean()),
+        value=float(xs.mean())
     )
+
+    topk = topk_closest(x_0, xs, 2)
+    st.write("Ranked TopK closest")
+    st.dataframe(pd.DataFrame({'index': topk, 'xs': xs[topk], 'ys': ys[topk]}))
 
     st.subheader("Метод Ньютона")
     newton_comparison = {"x": [], "n": [], "newton": []}
@@ -161,6 +207,19 @@ def main():
     ax.legend()
     st.pyplot(fig)
 
+    st.subheader("Интерполирование методом ньютона")
+
+    new_xs = np.linspace(xs.min(), xs.max(), 100)
+    new_ys = []
+    for new_x in new_xs:
+        new_y = newton(new_x, xs, ys)
+        new_ys.append(new_y)
+    new_ys = np.array(new_ys)
+
+    fig, ax = plt.subplots()
+    ax.plot(new_xs, new_ys)
+    st.pyplot(fig)
+
     st.subheader("Алгоритм Эрмита")
 
     hermite_comparison = {"x": [], "n": [], "hermite": []}
@@ -170,6 +229,8 @@ def main():
         hermite_comparison["x"].append(x_0)
         hermite_comparison["n"].append(n)
         hermite_comparison["hermite"].append(result)
+
+
 
     hermite_comparison = pd.DataFrame(hermite_comparison)
     st.dataframe(hermite_comparison)
@@ -189,17 +250,12 @@ def main():
     st.dataframe(merged)
 
     st.subheader("Обратная интерполяция")
-    y_0 = st.slider(
-        "Значение y: ",
-        min_value=float(ys.min()),
-        max_value=float(ys.max()),
-        value=float(ys.mean()),
-    )
+    y_0 = 0
     backward_comparison = {"y": [], "n": [], "backward": []}
 
     backward_range = st.slider("n_backward", min_value=2, max_value=20, value=5)
     for n in range(2, backward_range):
-        result = newton(y_0, ys, xs, power=n)
+        result = backwards_newton(y_0, ys, xs, n)
         backward_comparison["y"].append(y_0)
         backward_comparison["n"].append(n)
         backward_comparison["backward"].append(result)
@@ -209,10 +265,9 @@ def main():
     fig, ax = plt.subplots()
 
     ax.plot(df["y"], df["x"], label="x")
+    ax.axvline(x=0, c='k')
     ax.scatter(
-        backward_comparison["y"],
-        backward_comparison["backward"],
-        c=backward_comparison["n"],
+        backward_comparison["y"], backward_comparison["backward"], c=backward_comparison["n"]
     )
     ax.legend()
     st.pyplot(fig)
