@@ -40,6 +40,7 @@ def y_herm(i, k, zs, ys, ys_der):
             y_herm(i + 1, k - 1, zs, ys, ys_der) - y_herm(i, k - 1, zs, ys, ys_der)
         ) / (zs[i + k] - zs[i])
 
+
 @jit
 def topk_closest(x, xs, k):
     closest = np.abs(xs - x).argsort()
@@ -59,6 +60,7 @@ def newton(x, xs, ys, power=None):
     for k in range(1, power):
         lp += y_newt(0, k, xs, ys) * np.prod(x - xs[:k])
     return lp
+
 
 @jit
 def hermite(x, xs, ys, ys_der, power=None):
@@ -130,13 +132,13 @@ def get_data(type):
 
 
 def bin_search(xs, ys):
-    for i in range(len(xs)-1):
+    for i in range(len(xs) - 1):
         x_0 = xs[i]
         x_1 = xs[i + 1]
         y_0 = ys[i]
-        y_1 = ys[i+1]
+        y_1 = ys[i + 1]
         if y_0 * y_1 <= 0:
-            x_at_zero = (-y_0) * (x_1-x_0)/(y_1-y_0) + x_0
+            x_at_zero = (-y_0) * (x_1 - x_0) / (y_1 - y_0) + x_0
             if xs.min() <= x_at_zero <= xs.max():
                 return x_at_zero
     return None
@@ -179,12 +181,12 @@ def main():
         "Значение x: ",
         min_value=float(xs.min()),
         max_value=float(xs.max()),
-        value=float(xs.mean())
+        value=float(xs.mean()),
     )
 
     topk = topk_closest(x_0, xs, 2)
     st.write("Ranked TopK closest")
-    st.dataframe(pd.DataFrame({'index': topk, 'xs': xs[topk], 'ys': ys[topk]}))
+    st.dataframe(pd.DataFrame({"index": topk, "xs": xs[topk], "ys": ys[topk]}))
 
     st.subheader("Метод Ньютона")
     newton_comparison = {"x": [], "n": [], "newton": []}
@@ -230,8 +232,6 @@ def main():
         hermite_comparison["n"].append(n)
         hermite_comparison["hermite"].append(result)
 
-
-
     hermite_comparison = pd.DataFrame(hermite_comparison)
     st.dataframe(hermite_comparison)
 
@@ -265,9 +265,11 @@ def main():
     fig, ax = plt.subplots()
 
     ax.plot(df["y"], df["x"], label="x")
-    ax.axvline(x=0, c='k')
+    ax.axvline(x=0, c="k")
     ax.scatter(
-        backward_comparison["y"], backward_comparison["backward"], c=backward_comparison["n"]
+        backward_comparison["y"],
+        backward_comparison["backward"],
+        c=backward_comparison["n"],
     )
     ax.legend()
     st.pyplot(fig)

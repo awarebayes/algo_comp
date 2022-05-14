@@ -49,8 +49,8 @@ def teta(fi, teta_i, ksi_i, h1, h2):
 
 
 def calcHValues(xValues):
-    #hValues = list()
-    #for i in range(1, len(xValues)):
+    # hValues = list()
+    # for i in range(1, len(xValues)):
     #    hValues.append(H(xValues[i], xValues[i - 1]))
     hValues = H(xValues[1:], xValues[0:-1])
     return hValues

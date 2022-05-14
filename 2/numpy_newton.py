@@ -9,7 +9,7 @@ def y_newt(i, k, xs, ys) -> float:
         return ys[i]
     else:
         return (y_newt(i + 1, k - 1, xs, ys) - y_newt(i, k - 1, xs, ys)) / (
-                xs[i + k] - xs[i]
+            xs[i + k] - xs[i]
         )
 
 
@@ -52,7 +52,7 @@ def newton_3d_alt(axis, func, powers, point):
     x_pow, y_pow, z_pow = powers
     x, y, z = point
 
-    x_grid, y_grid, z_grid = np.meshgrid(*axis, indexing='ij')
+    x_grid, y_grid, z_grid = np.meshgrid(*axis, indexing="ij")
     tensor = func(x_grid, y_grid, z_grid)
     tensor = np.swapaxes(tensor, 0, 2)
 
@@ -66,4 +66,3 @@ def newton_3d_alt(axis, func, powers, point):
         z_values[i] = newton(y, ys, y_values, y_pow)
     ans = newton(z, zs, z_values, z_pow)
     return ans
-
