@@ -2,6 +2,13 @@ import numpy as np
 import streamlit as st
 import pandas as pd
 from matplotlib import pyplot as plt
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+import plotly.graph_objects as go
+
+
+
+def fit_data_np(x, y, w, n):
+    return np.polyfit(x, y, w=w, deg=n)
 
 
 def fit_data(x, y, w, n):
@@ -14,6 +21,7 @@ def fit_data(x, y, w, n):
 
     for i in range(n+1):
         b_mat[i] = np.sum(w * y * x ** i)
+
     coefs = np.linalg.solve(a_mat, b_mat)
     return coefs[::-1]
 
@@ -24,6 +32,7 @@ def load_data(filename):
     st.dataframe(df)
     x = None
     y = None
+    w = None
     one_dim = False
     if filename in ["tmp6.csv", "tmp7.csv"]:
         x = df["x"].values
@@ -43,6 +52,16 @@ def norm(arr):
     return n
 
 
+def mse(poly, x_test, y_test):
+    y_pred = poly(x_test)
+    return mean_squared_error(y_test, y_pred)
+
+
+def mae(poly, x_test, y_test):
+    y_pred = poly(x_test)
+    return mean_absolute_error(y_test, y_pred)
+
+
 def one_dim_ls(x, y, w, n):
     coefs = fit_data(x, y, w, n)
 
@@ -51,12 +70,42 @@ def one_dim_ls(x, y, w, n):
     ys = poly(xs)
 
     fig, ax = plt.subplots()
-    ax.plot(xs, ys)
+    ax.plot(xs, ys, label=f"n={n}")
     norm_weights = np.clip(norm(w) * 100, 10, 100)
     ax.scatter(x, y, s=norm_weights)
-
     st.pyplot(fig)
 
+
+def one_dim_ls_plot(x, y, w, n, ax):
+    xs = np.linspace(x.min(), x.max(), 100)
+    coefs = fit_data(x, y, w, n)
+    poly = np.poly1d(coefs)
+    ys = poly(xs)
+    ax.plot(xs, ys, label=f"n={n}")
+
+def multiple_ls_plot(x, y, w):
+    fig, ax = plt.subplots()
+    for i in [1, 2, 3, 5, 20]:
+        one_dim_ls_plot(x, y, w, i, ax)
+    norm_weights = np.clip(norm(w) * 100, 10, 100)
+    ax.scatter(x, y, s=norm_weights)
+    ax.legend()
+    st.pyplot(fig)
+
+
+
+def metric_table_one_dim(x, y, w):
+    table = {'n': [], 'mse': [], 'mae': []}
+    for i in [1, 2, 3, 5]:
+        xs = np.linspace(x.min(), x.max(), 100)
+        coefs = fit_data(x, y, w, i)
+        poly = np.poly1d(coefs)
+        ys = poly(xs)
+        table['n'].append(i)
+        table['mse'].append(mse(poly, x, y))
+        table['mae'].append(mae(poly, x, y))
+    st.subheader("Metrics")
+    st.dataframe(pd.DataFrame(table))
 
 def two_dim_slice_fit(x_fixed, x_interp, y, w, power, n_points=100):
     unique_x = np.unique(x_fixed)
@@ -82,6 +131,8 @@ def two_dim_slice_fit(x_fixed, x_interp, y, w, power, n_points=100):
         x_interp_arr[index] = x_interp_test
         x_fixed_arr[index] = np.ones(n_points) * ux
         y_preds_arr[index] = y_preds
+
+
 
     return x_fixed_arr, x_interp_arr, y_preds_arr
 
@@ -123,7 +174,7 @@ def plot_two_dim_fit(x_fixed, x_interp, y, w, power, n_points=100):
         y_train = y[mask]
         weight_train = w[mask]
 
-        coefs = fit_data(x_train, y_train, weight_train, power)
+        coefs = np.polyfit(x_train, y_train, w=weight_train, deg=power)
         poly = np.poly1d(coefs)
         y_preds = poly(x_interp_test)
 
@@ -157,6 +208,29 @@ def two_dim_ls(x, y, w, n):
     st.pyplot(fig)
 
 
+
+def two_dim_ls_pyplot(x, y, w, n):
+    x1s = x[:, 0]
+    x2s = x[:, 1]
+
+    x2s_fixed, x1s_fixed, ys_fixed = two_dim_slice_fit(x2s, x1s, y, w, n, 100)
+    ws_fixed = two_dim_interp_weights(x2s, x1s, w)
+
+    x1s_final, x2s_final, ys_final = two_dim_slice_fit(
+        x1s_fixed.ravel(), x2s_fixed.ravel(), ys_fixed.ravel(), ws_fixed.ravel(), n, 100
+    )
+
+
+    lines = []
+    line_marker = dict(color='#0066FF', width=2)
+    for i, j, k in zip(x1s_final, x2s_final, ys_final):
+        lines.append(go.Scatter3d(x=i, y=j, z=k, mode='lines', line=line_marker))
+    scats = go.Scatter3d(x=x1s.ravel(), y=x2s.ravel(), z=y, mode='markers', marker=dict(color='#ff0000'))
+    fig = go.Figure(data=[*lines, scats])
+    st.plotly_chart(fig)
+
+
+
 def main():
     st.header("Метод наименьших квадратов")
     data_type = st.radio(
@@ -173,8 +247,14 @@ def main():
 
     if one_dim:
         one_dim_ls(x, y, w, n)
+        multiple_ls_plot(x, y, w)
+        metric_table_one_dim(x, y, w)
     else:
-        two_dim_ls(x, y, w, n)
+        try:
+            two_dim_ls(x, y, w, n)
+            two_dim_ls_pyplot(x, y, w, n)
+        except np.linalg.LinAlgError:
+            st.error("Степень слишком большая")
 
 
 if __name__ == "__main__":
